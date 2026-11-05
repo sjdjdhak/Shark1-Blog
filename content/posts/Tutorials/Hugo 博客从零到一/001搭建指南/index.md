@@ -11,7 +11,7 @@ series_order: 1
 
 # Hugo + Blowfish 个人博客搭建指南
 
-> 方案：Hugo（通过 npm 安装）+ Blowfish 主题（git submodule）+ GitHub + Cloudflare Pages
+> 方案：Hugo（通过 npm 安装）+ Blowfish 主题（git submodule）+ GitHub Pages
 > 环境：Windows / PowerShell，需已安装 Node.js 和 Git
 > 整理日期：2026-11-02
 
@@ -29,7 +29,7 @@ series_order: 1
 8. [系列文章](#8-系列文章)
 9. [本地预览](#9-本地预览)
 10. [推送到 GitHub](#10-推送到-github)
-11. [部署到 Cloudflare Pages](#11-部署到-cloudflare-pages)
+11. [部署到 GitHub Pages](#11-部署到-github-pages)
 12. [日常命令速查](#12-日常命令速查)
 13. [升级 Hugo 与主题](#13-升级-hugo-与主题)
 14. [常见问题](#14-常见问题)
@@ -101,7 +101,7 @@ npx hugo version
 输出中应包含 `v0.167.0` 和 `+extended`。
 
 > 为什么不用 Git 装 Hugo：Git 只能拉源码，还要自己装 Go 和 GCC 编译。npm 和 winget 都是直接下载官方编译好的程序。
-> 用 npm 装在项目里的好处：Hugo 版本记录在 `package.json` 中，换电脑或者在 Cloudflare 构建时都会用同一个版本。
+> 用 npm 装在项目里的好处：Hugo 版本记录在 `package.json` 中，换电脑或者在 GitHub Actions 构建时都会用同一个版本。
 
 ---
 
@@ -166,7 +166,7 @@ mv config/_default/menus.en.toml config/_default/menus.zh-cn.toml
 
 ```toml
 theme = "blowfish"                         # 取消注释
-baseURL = "https://your-blog.pages.dev/"   # 部署后改成真实地址
+baseURL = "https://你的用户名.github.io/blog/"   # 替换为实际网站地址，详见第 11 节
 defaultContentLanguage = "zh-cn"
 hasCJKLanguage = true                      # 中文字数和阅读时间统计更准确
 
@@ -417,21 +417,117 @@ git push -u origin main
 
 ---
 
-## 11. 部署到 Cloudflare Pages
+## 11. 部署到 GitHub Pages
 
-1. 打开 <https://dash.cloudflare.com>，依次点 **Workers & Pages**、**Create**、**Pages**、**Connect to Git**，选择仓库
-2. 构建设置：
-   - Framework preset：**None**
-   - Build command：`npm run build`
-   - Build output directory：`public`
-3. 部署完成后，把 `xxx.pages.dev` 填回 `hugo.toml` 的 `baseURL`，提交并推送
+完成上一节的推送后，通过 GitHub Actions 自动构建并发布博客。
 
-> Cloudflare 检测到 `package.json` 会自动执行 `npm install`，用的就是锁定的 Hugo 版本，不需要再设置 `HUGO_VERSION`。主题 submodule 也会自动拉取。
+> GitHub Free 使用 GitHub Pages 时，需要公开仓库。请勿将密码、令牌等私密信息提交到仓库。
+
+### 11.1 设置网站地址
+
+修改 `config/_default/hugo.toml` 中的 `baseURL`。如果仓库名是 `blog`，填写：
+
+```toml
+baseURL = "https://你的用户名.github.io/blog/"
+```
+
+将 `你的用户名` 和 `blog` 替换成实际用户名和仓库名。如果仓库名就是 `你的用户名.github.io`，则填写：
+
+```toml
+baseURL = "https://你的用户名.github.io/"
+```
+
+保留地址末尾的 `/`。以后绑定自定义域名时，再改成对应域名。
+
+### 11.2 开启 GitHub Pages
+
+进入 GitHub 仓库的 **Settings → Pages → Build and deployment**，将 **Source** 设置为 **GitHub Actions**。
+
+### 11.3 添加自动部署配置
+
+在项目根目录新建 `.github/workflows/deploy.yml`，填入：
+
+```yaml
+name: Deploy Hugo to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build website
+        run: npm run build
+        env:
+          HUGO_ENVIRONMENT: production
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+> 上一节已将分支设置为 `main`；如果你使用其他分支名，请同步修改 `branches`。`npm ci` 根据 `package-lock.json` 安装依赖，使用项目锁定的 Hugo 版本，不需要额外设置 `HUGO_VERSION`。`submodules: recursive` 会拉取 Blowfish 主题，因此要确保 `package-lock.json`、`.gitmodules` 和主题子模块记录都已提交。
+
+### 11.4 提交并查看部署结果
+
+在项目根目录执行：
+
+```bash
+git add config/_default/hugo.toml .github/workflows/deploy.yml
+git commit -m "Configure GitHub Pages deployment"
+git push
+```
+
+进入仓库的 **Actions** 页面查看构建和部署进度。工作流成功后，在 **Settings → Pages** 中查看网站地址。
+
+以后每次向 `main` 分支推送更新，GitHub Actions 都会自动重新构建并发布博客，无需手动上传 `public` 文件夹。
 
 ### 可选：Giscus 评论
 
-1. 在 GitHub 仓库的 Settings 中开启 **Discussions**
-2. 在 <https://giscus.app/zh-CN> 生成 `<script>` 代码
+1. 准备一个公开的 GitHub 仓库，在 **Settings → General → Features** 中开启 **Discussions**；可以使用博客仓库，也可以单独创建评论仓库
+2. 在 <https://giscus.app/zh-CN> 按提示安装 Giscus GitHub App，选择仓库并生成 `<script>` 代码
 3. 新建 `layouts/partials/comments.html`，粘贴这段代码
 4. 在 `params.toml` 的 `[article]` 下设置 `showComments = true`
 
@@ -516,4 +612,4 @@ Hugo 找不到 `zh-cn` 语言，几乎都是文件名的问题。用 `ls config/
 - Blowfish 文档：<https://blowfish.page/docs/>
 - Blowfish 仓库：<https://github.com/nunocoracao/blowfish>
 - Giscus：<https://giscus.app/zh-CN>
-- Cloudflare Pages：<https://dash.cloudflare.com>
+- GitHub Pages：<https://docs.github.com/zh/pages>
