@@ -1,7 +1,7 @@
 ---
 title: "填写文章标题"
 date: {{ .Date }}
-draft: true
+draft: false
 tags: ["AI", "Agent", "提示词"]
 categories: ["人工智能"]
 # series: ["系列名称"]
