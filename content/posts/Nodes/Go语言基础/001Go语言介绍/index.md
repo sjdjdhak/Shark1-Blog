@@ -1,5 +1,5 @@
 ---
-title: "Go语言介绍"
+title: "001 Go语言介绍"
 date: 2026-11-05T20:11:03+08:00
 draft: false
 tags: ["Go语言", "基础", "入门"]

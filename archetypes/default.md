@@ -2,9 +2,9 @@
 title: "填写文章标题"
 date: {{ .Date }}
 draft: false
-tags: ["AI", "Agent", "提示词"]
-categories: ["人工智能"]
-# series: ["系列名称"]
+tags: ["Go语言", "基础", "入门"]
+categories: ["Nodes"]
+# series: ["Go语言基础"]
 # series_order: 1
 ---
 
